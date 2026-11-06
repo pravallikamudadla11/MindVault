@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Library, Plus, Search, Star, Clock3, Folder, Archive,
   Trash2, Settings, Moon, Sun, Link2, FileText, FileUp, MoreHorizontal,
   Pin, ExternalLink, Download, Pencil, RotateCcw, X, Menu, Tag, Layers,
-  LogOut, Sparkles, Filter, Check, ChevronDown, HardDrive, BookOpen
+  LogOut, Sparkles, Filter, Check, ChevronDown, HardDrive, BookOpen, Eye, EyeOff
 } from "lucide-react";
 
 const api = async (path, options = {}) => {
@@ -40,23 +40,85 @@ function PasswordFeedback({ password }) {
 }
 
 function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("login");
+  const resetTokenFromUrl = new URLSearchParams(window.location.search).get("resetToken") || "";
+  const [mode, setMode] = useState(resetTokenFromUrl ? "reset" : "login");
   const [form, setForm] = useState({ name:"", email:"", password:"", confirmPassword:"" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const submit = async e => {
-    e.preventDefault(); setError("");
-    if (mode === "register") {
-      if (!passwordChecks(form.password).every(item => item.valid)) { setError("Please satisfy all password requirements."); return; }
-      if (form.password !== form.confirmPassword) { setError("Passwords do not match."); return; }
+
+  const switchMode = nextMode => {
+    setMode(nextMode);
+    setError("");
+    setNotice("");
+    setShowPassword(false);
+    setForm(current => ({ ...current, password:"", confirmPassword:"" }));
+    if (nextMode !== "reset") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resetToken");
+      window.history.replaceState({}, "", url);
     }
+  };
+
+  const submit = async e => {
+    e.preventDefault();
+    setError("");
+    setNotice("");
+
+    if (mode === "register" || mode === "reset") {
+      if (!passwordChecks(form.password).every(item => item.valid)) {
+        setError("Please satisfy all password requirements.");
+        return;
+      }
+      if (form.password !== form.confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+    }
+
     setBusy(true);
     try {
-      const { confirmPassword, ...payload } = form;
-      const result = await api(`/auth/${mode}`, { method:"POST", body:JSON.stringify(payload) });
-      localStorage.setItem("mindvault_token", result.token); onAuth(result.user);
-    } catch(err) { setError(err.message); } finally { setBusy(false); }
+      if (mode === "forgot") {
+        const result = await api("/auth/forgot-password", {
+          method:"POST",
+          body:JSON.stringify({ email:form.email })
+        });
+        setNotice(result.message || "If an account exists for that email, a reset link has been sent.");
+      } else if (mode === "reset") {
+        const result = await api("/auth/reset-password", {
+          method:"POST",
+          body:JSON.stringify({ token:resetTokenFromUrl, password:form.password })
+        });
+        setNotice(result.message || "Your password has been reset. You can now sign in.");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("resetToken");
+        window.history.replaceState({}, "", url);
+        setForm(current => ({ ...current, password:"", confirmPassword:"" }));
+        setMode("login");
+      } else {
+        const { confirmPassword, ...payload } = form;
+        const result = await api(`/auth/${mode}`, { method:"POST", body:JSON.stringify(payload) });
+        localStorage.setItem("mindvault_token", result.token);
+        onAuth(result.user);
+      }
+    } catch(err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const title = mode === "login" ? "Sign in to MindVault"
+    : mode === "register" ? "Create your account"
+    : mode === "forgot" ? "Reset your password"
+    : "Choose a new password";
+  const description = mode === "login" ? "Pick up right where you left off."
+    : mode === "register" ? "Start building your personal knowledge library."
+    : mode === "forgot" ? "Enter your account email and we'll send you a secure reset link."
+    : "Create a new password for your MindVault account.";
+  const passwordLabel = mode === "reset" ? "New password" : "Password";
+
   return <div className="auth-wrap">
     <div className="auth-art"><div className="brand"><span className="brand-mark"><Layers size={22}/></span> MindVault</div>
       <div className="art-copy"><span className="eyebrow">YOUR PERSONAL KNOWLEDGE SPACE</span><h1>Everything you save.<br/><em>Never lost again.</em></h1><p>Bring your links, notes and files together in one calm, searchable space.</p>
@@ -66,20 +128,36 @@ function AuthScreen({ onAuth }) {
     </div>
     <div className="auth-panel"><form className="auth-form" onSubmit={submit}>
       <div className="mobile-brand"><span className="brand-mark"><Layers size={20}/></span> MindVault</div>
-      <span className="eyebrow">WELCOME {mode === "login" ? "BACK" : "ABOARD"}</span>
-      <h2>{mode === "login" ? "Sign in to MindVault" : "Create your account"}</h2>
-      <p className="muted">{mode === "login" ? "Pick up right where you left off." : "Start building your personal knowledge library."}</p>
-      {mode === "register" && <label>Full name<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></label>}
-      <label>Email address<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com"/></label>
-      <label>Password<input required type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder={mode === "register" ? "Create a strong password" : "Your password"}/></label>
-      {mode === "register" && <><PasswordFeedback password={form.password}/><label>Confirm password<input required type="password" value={form.confirmPassword} onChange={e=>setForm({...form,confirmPassword:e.target.value})} placeholder="Re-enter your password"/></label></>}
+      <span className="eyebrow">{mode === "login" ? "WELCOME BACK" : mode === "register" ? "WELCOME ABOARD" : "ACCOUNT RECOVERY"}</span>
+      <h2>{title}</h2>
+      <p className="muted">{description}</p>
+      {mode === "register" && <label>Full name<input required maxLength={80} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></label>}
+      {mode !== "reset" && <label>Email address<input required type="email" autoComplete="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com"/></label>}
+      {(mode === "login" || mode === "register" || mode === "reset") && <>
+        <label className="password-field-label">{passwordLabel}
+          <span className="password-input-wrap">
+            <input required type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder={mode === "login" ? "Your password" : "Create a strong password"}/>
+            <button type="button" className="password-visibility" aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} onClick={()=>setShowPassword(value=>!value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
+          </span>
+        </label>
+        {(mode === "register" || mode === "reset") && <PasswordFeedback password={form.password}/>}
+        {(mode === "register" || mode === "reset") && <label className="password-field-label">Confirm password
+          <span className="password-input-wrap">
+            <input required type="password" autoComplete="new-password" value={form.confirmPassword} aria-invalid={!!form.confirmPassword && form.password !== form.confirmPassword} onChange={e=>setForm({...form,confirmPassword:e.target.value})} placeholder="Re-enter your password"/>
+          </span>
+          {form.confirmPassword.length > 0 && <small className={`password-match ${form.password === form.confirmPassword ? "match" : "mismatch"}`}>{form.password === form.confirmPassword ? "✓ Passwords match" : "✕ Passwords do not match"}</small>}
+        </label>}
+      </>}
       {error && <div className="error-box">{error}</div>}
-      <button className="primary-btn full" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
-      <p className="auth-switch">{mode === "login" ? "New to MindVault?" : "Already have an account?"} <button type="button" className="text-btn" onClick={()=>{setMode(mode==="login"?"register":"login");setError("");setForm({...form,password:"",confirmPassword:""});}}>{mode==="login"?"Create an account":"Sign in"}</button></p>
+      {notice && <div className="success-box">{notice}</div>}
+      <button className="primary-btn full" disabled={busy || (mode === "reset" && !resetTokenFromUrl)}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : mode === "register" ? "Create account" : mode === "forgot" ? "Send reset link" : "Reset password"}</button>
+      {mode === "login" && <p className="auth-switch"><button type="button" className="text-btn" onClick={()=>switchMode("forgot")}>Forgot password?</button></p>}
+      {mode === "forgot" && <p className="auth-switch">Remembered your password? <button type="button" className="text-btn" onClick={()=>switchMode("login")}>Back to sign in</button></p>}
+      {mode === "reset" && !resetTokenFromUrl && <div className="error-box">This reset link is missing its token. Request a new password reset link.</div>}
+      {mode !== "forgot" && mode !== "reset" && <p className="auth-switch">{mode === "login" ? "New to MindVault?" : "Already have an account?"} <button type="button" className="text-btn" onClick={()=>switchMode(mode==="login"?"register":"login")}>{mode==="login"?"Create an account":"Sign in"}</button></p>}
     </form></div>
   </div>;
 }
-
 function ResourceModal({ initial, onClose, onSave }) {
   const [type,setType] = useState(initial?.type || "link");
   const [form,setForm] = useState({ title:initial?.title||"", description:initial?.description||"", url:initial?.url||"", content:initial?.content||"", category:initial?.category||"Study", tags:(initial?.tags||[]).join(", ") });
@@ -129,10 +207,15 @@ function App() {
   const [toast,setToast] = useState("");
   const [theme,setTheme] = useState(localStorage.getItem("mindvault_theme") || "system");
   const [mobileNav,setMobileNav] = useState(false);
+  const [profileOpen,setProfileOpen] = useState(false);
   const [selectedCollection,setSelectedCollection] = useState("");
   const [newCollection,setNewCollection] = useState("");
   const [loading,setLoading] = useState(false);
   const [passwordDraft,setPasswordDraft] = useState("");
+  const [openedAt] = useState(() => new Date());
+  const dashboardDate = openedAt.toLocaleDateString(undefined, {
+    weekday:"long", year:"numeric", month:"long", day:"numeric"
+  }).toUpperCase();
 
   useEffect(()=>{
     const applyTheme = () => { const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.dataset.theme = isDark ? "dark" : "light"; };
@@ -190,14 +273,27 @@ function App() {
       {navItems.map(n=><button key={n.id} className={`nav-item ${page===n.id?"selected":""}`} onClick={()=>{setPage(n.id);setMobileNav(false);}}><n.icon size={18}/>{n.label}{n.id==="favorites"&&stats.favorites>0&&<span className="nav-count">{stats.favorites}</span>}</button>)}
       <div className="nav-label nav-label-spaced">YOUR SPACE</div>
       {secondary.map(n=><button key={n.id} className={`nav-item ${page===n.id?"selected":""}`} onClick={()=>{setPage(n.id);setMobileNav(false);}}><n.icon size={18}/>{n.label}{n.id==="trash"&&stats.trash>0&&<span className="nav-count">{stats.trash}</span>}</button>)}
+      <div className="nav-label nav-label-spaced">PREFERENCES</div>
+      <button className={`nav-item ${page==="settings"?"selected":""}`} onClick={()=>{setPage("settings");setMobileNav(false);setProfileOpen(false);}}><Settings size={18}/> Settings</button>
       {collections.length>0&&<div className="collection-nav"><div className="nav-label nav-label-spaced">COLLECTIONS</div>{collections.slice(0,5).map(c=><button className="nav-item compact" key={c._id} onClick={()=>{setSelectedCollection(c._id);setPage("collection");}}><Folder size={16}/>{c.name}</button>)}</div>}
-      <div className="sidebar-bottom"><div className="storage-card"><div className="storage-top"><HardDrive size={15}/> Storage used</div><strong>{formatBytes(stats.storageBytes)}</strong><small>Local upload storage</small></div><button className="nav-item" onClick={()=>setPage("settings")}><Settings size={18}/> Settings</button><div className="user-mini"><div className="avatar">{initials(user.name)}</div><div className="user-meta"><strong>{user.name}</strong><small>{user.email}</small></div><button className="icon-btn logout" title="Sign out" onClick={logout}><LogOut size={17}/></button></div></div>
+      <div className="sidebar-bottom"><div className="storage-card"><div className="storage-top"><HardDrive size={15}/> Storage used</div><strong>{formatBytes(stats.storageBytes)}</strong><small>Local upload storage</small></div><div className="user-mini"><div className="avatar">{initials(user.name)}</div><div className="user-meta"><strong>{user.name}</strong><small>{user.email}</small></div><button className="icon-btn logout" title="Sign out" onClick={logout}><LogOut size={17}/></button></div></div>
     </aside>
     {mobileNav&&<div className="mobile-scrim" onClick={()=>setMobileNav(false)}></div>}
     <main className="main-area">
-      <header className="topbar"><button className="icon-btn menu-toggle" onClick={()=>setMobileNav(true)}><Menu/></button><div className="breadcrumbs">Workspace <span>/</span> <strong>{titleMap[page]}</strong></div><div className="top-actions"><div className="top-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search your vault…"/><kbd>⌘ K</kbd></div><button className="icon-btn theme-toggle" onClick={()=>setPage("settings")} title="Appearance settings"><Settings size={18}/></button><div className="avatar top-avatar">{initials(user.name)}</div></div></header>
+      <header className="topbar"><button className="icon-btn menu-toggle" onClick={()=>setMobileNav(true)}><Menu/></button><div className="breadcrumbs">Workspace <span>/</span> <strong>{titleMap[page]}</strong></div><div className="top-actions"><div className="top-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search your vault…"/><kbd>⌘ K</kbd></div><button className="icon-btn theme-toggle" onClick={()=>setPage("settings")} title="Appearance settings"><Settings size={18}/></button><div className="profile-wrap">
+          <button type="button" className={`avatar top-avatar profile-trigger ${profileOpen?"active":""}`} aria-label="Open personal account menu" aria-expanded={profileOpen} onClick={()=>setProfileOpen(value=>!value)}>{initials(user.name)}</button>
+          {profileOpen && <div className="profile-menu">
+            <div className="profile-menu-head"><div className="avatar profile-large">{initials(user.name)}</div><div><strong>{user.name}</strong><small>{user.email}</small></div></div>
+            <div className="profile-detail"><span>Account type</span><strong>Personal account</strong></div>
+            <div className="profile-detail"><span>Workspace</span><strong>My private vault</strong></div>
+            <div className="profile-menu-actions">
+              <button onClick={()=>{setPage("settings");setProfileOpen(false);setMobileNav(false);}}><Settings size={15}/> Account settings</button>
+              <button className="danger-text" onClick={()=>{setProfileOpen(false);logout();}}><LogOut size={15}/> Sign out</button>
+            </div>
+          </div>}
+        </div></div></header>
       <div className="page-content">
-        <div className="page-heading"><div><span className="eyebrow">THURSDAY, YOUR DIGITAL SPACE</span><h1>{page==="dashboard"?`Welcome back, ${user.name.split(" ")[0]}`:titleMap[page]}</h1><p>{page==="dashboard"?"A clear space for everything worth keeping.":page==="library"?"All your saved links, notes and files in one place.":page==="trash"?"Items here can be restored or permanently deleted.":"Keep your knowledge organized and close at hand."}</p></div>{page!=="settings"&&<button className="primary-btn" onClick={()=>setModal({new:true})}><Plus size={17}/> Add resource</button>}</div>
+        <div className="page-heading"><div><span className="eyebrow">{page === "dashboard" ? `${dashboardDate} · YOUR DIGITAL SPACE` : titleMap[page]}</span><h1>{page==="dashboard"?`Welcome back, ${user.name.split(" ")[0]}`:titleMap[page]}</h1><p>{page==="dashboard"?"A clear space for everything worth keeping.":page==="library"?"All your saved links, notes and files in one place.":page==="trash"?"Items here can be restored or permanently deleted.":"Keep your knowledge organized and close at hand."}</p></div>{page!=="settings"&&<button className="primary-btn" onClick={()=>setModal({new:true})}><Plus size={17}/> Add resource</button>}</div>
 
         {page==="dashboard"&&<><div className="stats-grid">
           {[["Total resources",stats.total,Library,"#7866e8"],["Website links",stats.links,Link2,"#3b9caa"],["Notes",stats.notes,FileText,"#d49a43"],["Files",stats.files,FileUp,"#d47d9d"]].map(([label,value,Icon,color])=><div className="stat-card" key={label}><div className="stat-icon" style={{"--accent":color}}><Icon size={19}/></div><span>{label}</span><strong>{value}</strong><small>In your active library</small></div>)}
@@ -205,7 +301,7 @@ function App() {
 
         {page==="settings"&&<div className="settings-stack">
           <section className="panel settings-panel"><h3>Appearance</h3><p className="settings-description">Choose how MindVault looks on this device.</p><div className="theme-options">{[{value:"light",label:"Light",icon:Sun},{value:"dark",label:"Dark",icon:Moon},{value:"system",label:"System default",icon:Settings}].map(option=><button key={option.value} className={`theme-option ${theme===option.value?"selected":""}`} onClick={()=>setTheme(option.value)}><option.icon size={19}/><strong>{option.label}</strong><small>{theme===option.value?"Currently selected":"Use this theme"}</small></button>)}</div></section>
-          <section className="panel settings-panel"><h3>Account</h3><div className="setting-row"><div><strong>{user.name}</strong><p>{user.email}</p></div><button className="secondary-btn danger-text" onClick={logout}><LogOut size={16}/> Sign out</button></div></section>
+          <section className="panel settings-panel"><h3>Personal account details</h3><p className="settings-description">Your profile information for this private MindVault workspace.</p><div className="account-profile"><div className="avatar account-avatar">{initials(user.name)}</div><div><strong>{user.name}</strong><p>{user.email}</p></div><span className="account-status">Active</span></div><div className="account-detail-grid"><div><small>Full name</small><strong>{user.name}</strong></div><div><small>Email address</small><strong>{user.email}</strong></div><div><small>Account type</small><strong>Personal</strong></div><div><small>Workspace</small><strong>My private vault</strong></div></div><div className="setting-row account-signout"><div><strong>Session</strong><p>Sign out of this device when you are finished.</p></div><button className="secondary-btn danger-text" onClick={logout}><LogOut size={16}/> Sign out</button></div></section>
           <section className="panel settings-panel"><h3>Change password</h3><p className="settings-description">Use a unique password to protect your account.</p><form className="password-change-form" onSubmit={changePassword}><label>Current password<input name="currentPassword" type="password" autoComplete="current-password" required placeholder="Enter current password"/></label><label>New password<input name="newPassword" type="password" autoComplete="new-password" required value={passwordDraft} onChange={e=>setPasswordDraft(e.target.value)} placeholder="Create a new password"/></label><PasswordFeedback password={passwordDraft}/><label>Confirm new password<input name="confirmPassword" type="password" autoComplete="new-password" required placeholder="Confirm new password"/></label><button className="primary-btn">Update password</button></form></section>
           <section className="panel settings-panel"><h3>About MindVault</h3><div className="setting-row"><div><strong>Digital Clutter Organizer</strong><p>Full Stack Development project</p></div><span className="version-pill">v1.1.0</span></div></section>
         </div>}

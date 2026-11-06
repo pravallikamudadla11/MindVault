@@ -51,20 +51,6 @@ app.get("*", (req, res, next) => {
   res.sendFile(path.join(clientDist, "index.html"), err => { if (err) res.status(404).send("MindVault client build not found. Run npm run build."); });
 });
 
-console.log("Starting MindVault API...");
-console.log("PORT:", process.env.PORT);
-console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
-console.log("JWT_SECRET exists:", !!process.env.JWT_SECRET);
-
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB connected successfully");
-
-    app.listen(port, "0.0.0.0", () => {
-      console.log(`MindVault API running on port ${port}`);
-    });
-  })
-  .catch(err => {
-    console.error("MongoDB connection failed:", err);
-    process.exit(1);
-  });
+mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/mindvault")
+  .then(() => app.listen(port, () => console.log(`MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`, `\nMindVault API running on http://localhost:${port}`)))
+  .catch(err => { console.error("MongoDB connection failed:", err.message); process.exit(1); });

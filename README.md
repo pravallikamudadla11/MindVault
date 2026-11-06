@@ -5,6 +5,9 @@ A full-stack team project built with React, Node.js, Express and MongoDB.
 ## Included features
 
 - JWT registration and login
+- Forgot-password email flow with single-use, hashed, 15-minute reset tokens
+- Show/hide password controls on login and registration forms
+- Dashboard greeting shows the current weekday and date when the app is opened
 - Personal dashboard with resource statistics
 - Save website links, text notes and uploaded files
 - Upload PDF, DOC/DOCX, TXT, PNG, JPG/JPEG and WEBP files (10 MB max)
@@ -44,6 +47,11 @@ Example format (not a working credential):
 MONGO_URI=mongodb+srv://<username>:<password>@<cluster-host>/mindvault?retryWrites=true&w=majority
 JWT_SECRET=<long-random-secret-at-least-32-characters>
 CLIENT_ORIGIN=http://localhost:5173
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-username
+SMTP_PASS=your-smtp-password
+SMTP_FROM=MindVault <no-reply@example.com>
 ```
 
 For local MongoDB instead, set `MONGO_URI=mongodb://127.0.0.1:27017/mindvault` and optionally start Docker:
@@ -96,6 +104,8 @@ For a smaller team, combine responsibilities.
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/auth/change-password` (requires current password and a valid new password)
+- `POST /api/auth/forgot-password` (sends a password reset link; requires SMTP configuration)
+- `POST /api/auth/reset-password` (validates the single-use reset token and updates the password)
 - `GET/POST /api/resources`
 - `GET/PATCH/DELETE /api/resources/:id`
 - `PATCH /api/resources/:id/restore`
@@ -111,3 +121,16 @@ All resource, collection and password-change endpoints require `Authorization: B
 - Uploaded files are stored in `server/uploads` for local development. For deployment, use object storage (Cloudinary, S3, or Firebase Storage) and configure access controls.
 - This starter uses simple text search with MongoDB regex. Semantic search and AI summarization are intentionally left as future extensions requiring an API key and careful privacy controls.
 - Do not commit `.env` or real user uploads to GitHub.
+
+## Configure password recovery email
+
+Set these variables in the Render service's Environment settings (and in `server/.env` for local development):
+
+- `SMTP_HOST`: your email provider's SMTP host
+- `SMTP_PORT`: usually `587` (STARTTLS) or `465` (SSL)
+- `SMTP_USER`: SMTP username
+- `SMTP_PASS`: SMTP password or provider-generated app password
+- `SMTP_FROM`: sender address, for example `MindVault <verified-sender@your-domain.com>`
+- `CLIENT_ORIGIN`: the deployed MindVault website origin (used to build the reset link)
+
+Use a verified sender with your email provider. Do not commit SMTP credentials. Password reset tokens are stored hashed, expire after 15 minutes, and are cleared after successful use.
