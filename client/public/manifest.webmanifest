@@ -1,0 +1,11 @@
+{
+  "name": "MindVault - Digital Clutter Organizer",
+  "short_name": "MindVault",
+  "description": "Your personal digital knowledge library",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f3ee",
+  "theme_color": "#373f7b",
+  "icons": [{"src":"/mindvault-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

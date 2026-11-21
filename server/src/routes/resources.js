@@ -40,7 +40,7 @@ router.get("/", async (req, res) => {
     if (favorite === "true") query.favorite = true;
     if (search.trim()) {
       const rx = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      query.$or = [{ title: rx }, { description: rx }, { content: rx }, { category: rx }, { tags: rx }];
+      query.$or = [{ title: rx }, { description: rx }, { url: rx }, { content: rx }, { category: rx }, { tags: rx }, { fileName: rx }];
     }
     if (collection) {
       const found = await Collection.findOne({ _id: collection, user: req.userId });

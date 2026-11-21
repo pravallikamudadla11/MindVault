@@ -36,6 +36,7 @@ app.get("/api/dashboard", auth, async (req, res) => {
       notes: active.filter(x => x.type === "note").length,
       files: active.filter(x => x.type === "file").length,
       favorites: active.filter(x => x.favorite).length,
+      pinned: active.filter(x => x.pinned).length,
       archived: all.filter(x => x.archived && !x.trashed).length,
       trash: all.filter(x => x.trashed).length,
       storageBytes: active.reduce((sum,x) => sum + (x.fileSize || 0), 0),

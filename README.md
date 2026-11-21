@@ -5,9 +5,13 @@ A full-stack team project built with React, Node.js, Express and MongoDB.
 ## Included features
 
 - JWT registration and login
-- Forgot-password email flow with single-use, hashed, 15-minute reset tokens
-- Show/hide password controls on login and registration forms
-- Dashboard greeting shows the current weekday and date when the app is opened
+- Refreshed warm, rounded dashboard inspired by the supplied MindVault reference, with resource composition, summary metrics and collection previews
+- Tag navigator with one-click tag search
+- Paste a web URL directly from the clipboard into a new resource
+- Export the active vault as a JSON backup
+- Offline library: save notes and resource metadata in browser IndexedDB; download uploaded files for offline access
+- Progressive Web App support: install MindVault on supported browsers and cache the application shell for offline launch
+- Offline/online connectivity indicator and local offline-copy management
 - Personal dashboard with resource statistics
 - Save website links, text notes and uploaded files
 - Upload PDF, DOC/DOCX, TXT, PNG, JPG/JPEG and WEBP files (10 MB max)
@@ -19,6 +23,7 @@ A full-stack team project built with React, Node.js, Express and MongoDB.
 - Restore items from the recycle bin
 - Collections (create collections and assign resources)
 - Recently viewed resources
+- Responsive icon-rail navigation and horizontal workspace navigation
 - Responsive layout with Light, Dark and System theme preferences
 - Account settings with logout and authenticated password changes
 - Registration and password-change validation: 9+ characters, uppercase, lowercase, number and special character
@@ -47,11 +52,6 @@ Example format (not a working credential):
 MONGO_URI=mongodb+srv://<username>:<password>@<cluster-host>/mindvault?retryWrites=true&w=majority
 JWT_SECRET=<long-random-secret-at-least-32-characters>
 CLIENT_ORIGIN=http://localhost:5173
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=your-smtp-username
-SMTP_PASS=your-smtp-password
-SMTP_FROM=MindVault <no-reply@example.com>
 ```
 
 For local MongoDB instead, set `MONGO_URI=mongodb://127.0.0.1:27017/mindvault` and optionally start Docker:
@@ -104,8 +104,6 @@ For a smaller team, combine responsibilities.
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/auth/change-password` (requires current password and a valid new password)
-- `POST /api/auth/forgot-password` (sends a password reset link; requires SMTP configuration)
-- `POST /api/auth/reset-password` (validates the single-use reset token and updates the password)
 - `GET/POST /api/resources`
 - `GET/PATCH/DELETE /api/resources/:id`
 - `PATCH /api/resources/:id/restore`
@@ -116,21 +114,23 @@ For a smaller team, combine responsibilities.
 
 All resource, collection and password-change endpoints require `Authorization: Bearer <token>`. Passwords are hashed with bcrypt; the API enforces the password policy even if frontend validation is bypassed.
 
+## Offline access
+
+- Open a resource card menu and choose **Save for offline**. Notes and resource metadata are stored in this browser using IndexedDB; uploaded files are downloaded as local Blob copies.
+- Open **Offline library** in the sidebar to read saved notes, download saved files again, open saved link URLs when connected, or remove local copies.
+- MindVault can be installed as a PWA on supported browsers. The service worker caches the app shell and built static assets so the interface can launch offline.
+- Offline copies are device/browser-specific and are not synced to MongoDB. Clearing browser site data removes them. A saved link keeps its URL and description only; the third-party website itself still requires an internet connection.
+- Offline mode is read-only: creating, editing, deleting, or syncing cloud resources requires a connection. Use HTTPS in production (localhost is also treated as a secure context by browsers).
+
 ## Notes
 
 - Uploaded files are stored in `server/uploads` for local development. For deployment, use object storage (Cloudinary, S3, or Firebase Storage) and configure access controls.
 - This starter uses simple text search with MongoDB regex. Semantic search and AI summarization are intentionally left as future extensions requiring an API key and careful privacy controls.
 - Do not commit `.env` or real user uploads to GitHub.
 
-## Configure password recovery email
+## Latest UI and usability updates
 
-Set these variables in the Render service's Environment settings (and in `server/.env` for local development):
-
-- `SMTP_HOST`: your email provider's SMTP host
-- `SMTP_PORT`: usually `587` (STARTTLS) or `465` (SSL)
-- `SMTP_USER`: SMTP username
-- `SMTP_PASS`: SMTP password or provider-generated app password
-- `SMTP_FROM`: sender address, for example `MindVault <verified-sender@your-domain.com>`
-- `CLIENT_ORIGIN`: the deployed MindVault website origin (used to build the reset link)
-
-Use a verified sender with your email provider. Do not commit SMTP credentials. Password reset tokens are stored hashed, expire after 15 minutes, and are cleared after successful use.
+- Global resource search now matches titles, descriptions, website URLs, note content, categories, tags, and uploaded file names. Search input is debounced to avoid sending a request for every keystroke; press Enter to open the full results in My Library.
+- The left navigation is a full-height, independently scrollable sidebar so workspace sections, collections, storage details, and settings remain reachable.
+- The top-right account menu displays the signed-in user's name, email, account identifier, membership date, account settings shortcut, and sign-out action.
+- The dashboard includes a Recently opened activity list and Quick Access actions for adding resources, saving clipboard URLs, opening the offline library, and exporting a backup.
